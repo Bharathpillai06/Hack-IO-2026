@@ -1,5 +1,6 @@
 import threading
 import time
+import os
 
 from flask import Flask
 import socket
@@ -65,15 +66,29 @@ def UDP_sender():
     UDPServerSocket.bind((localIP, localPort))
     
     while True:
-        
+
         time.sleep(0.2)
         msg_to_send=drones.generate_json_all_drones_positions()
         lock_udp.acquire()
         for dest in udp_listener:
-            UDPServerSocket.sendto(str.encode(msg_to_send), dest)
+            n=UDPServerSocket.sendto(str.encode(msg_to_send), dest)
+            tx_stats["bytes"]+=n
+            tx_stats["packets"]+=1
         lock_udp.release()
         
         
+# instrumentation: UDP telemetry bytes/packets sent since last reset
+tx_stats={"bytes":0,"packets":0,"since":time.time()}
+
+@app.route("/stats")
+def stats():
+    return dict(tx_stats, elapsed=time.time()-tx_stats["since"])
+
+@app.route("/stats/reset")
+def stats_reset():
+    tx_stats.update(bytes=0,packets=0,since=time.time())
+    return "ok"
+
 @app.route("/get_anchor_pos")
 def anchor():
     return drones.get_anchor_pos()
@@ -115,7 +130,8 @@ if __name__ == '__main__':
     th2.start()
     
     
-http=WSGIServer(("",5000),app)
+import os
+http=WSGIServer((os.environ.get("TWINFLIE_HTTP_HOST",""),5000),app)
 
 http.serve_forever()
     

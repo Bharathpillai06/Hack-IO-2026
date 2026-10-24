@@ -1,6 +1,3 @@
-from operator import truediv
-from turtle import distance
-from typing import Counter
 from pymitter import EventEmitter
 import time
 import sys

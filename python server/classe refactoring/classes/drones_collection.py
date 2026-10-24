@@ -3,6 +3,12 @@ import time
 
 from classes.uav.UAVEvents import UAVEvents
 from classes.uav.UAV_ciccio import UAV
+from classes.uav.MockUAV import MockUAV
+
+# Fake anchors for mock sessions: corners of a 12 x 12 x 2.5 m room
+MOCK_ANCHORS = {i: (x, y, z) for i, (x, y, z) in enumerate(
+    [(-1, -1, 0), (13, -1, 0), (13, 13, 0), (-1, 13, 0),
+     (-1, -1, 2.5), (13, -1, 2.5), (13, 13, 2.5), (-1, 13, 2.5)])}
 
 from cflib.crazyflie.mem.memory_element import MemoryElement
 
@@ -62,7 +68,7 @@ class drones_collection():
             return self.drones[url]    
         self.lock_drones.release()
     
-        uavTest = UAV(url)
+        uavTest = MockUAV(url) if url.startswith("mock") else UAV(url)
 
         uavTest.events.on(UAVEvents.CONNECTED,
                       lambda uri:
@@ -108,6 +114,8 @@ class drones_collection():
                 info[key]["position"]=str(pos_tupla)
                 info[key]["status"]=uav.status
                 info[key]["battery"]=uav.battery
+                # instrumentation: when this sample was produced (unix s)
+                info[key]["t"]=getattr(uav, "sample_t", 0.0)
 
                 if uav.status=="disconnected":
                     print("disconnected")
@@ -125,7 +133,17 @@ class drones_collection():
             self.lock_drones.release()
             json["status"]="no drone connected"
             return json
-    
+
+        first = list(self.drones.values())[0]
+        if isinstance(first, MockUAV):
+            self.lock_drones.release()
+            if not self.anchor_pos:
+                self.anchor_pos.update(MOCK_ANCHORS)
+            json["status"]="drone correctly connected"
+            for x in range(len(self.anchor_pos)):
+                json[str(x)]={"pos":str(self.anchor_pos[x])}
+            return json
+
         self._get_loco_positions(list(self.drones.values())[0])
    
         #serve che qui il flusso si blocchi perche bisogno aspettare che i dati siano pronti nella "_anchor_position_signal" 
@@ -247,8 +265,15 @@ class drones_collection():
             json["status"]="no drone connected"
             return json
 
-        
-        ancore = LoPoAnchor(list(self.drones.values())[0].scf.cf)
+        first = list(self.drones.values())[0]
+        if isinstance(first, MockUAV):
+            for id, pos in data.items():
+                self.anchor_pos[int(id)] = (float(pos["x"]), float(pos["z"]), float(pos["y"]))
+            self.lock_drones.release()
+            json["status"]="successfully anchor setted"
+            return json
+
+        ancore = LoPoAnchor(first.scf.cf)
         
         for id, pos in data.items():
             ancore.set_position(int(id), (float(pos["x"]), float(pos["z"]), float(pos["y"])))
