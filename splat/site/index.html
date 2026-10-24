@@ -1,0 +1,403 @@
+<title>Tuttle Park Flight Sim</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D viewport; instrument panels pinned to the four corners like a ground-station HUD. */
+:root {
+  --sky-top: #6f8ea6; --sky-low: #c9d4d9;
+  --panel: rgba(14, 20, 18, 0.78); --panel-line: rgba(214, 226, 214, 0.16);
+  --ink: #e4ebe2; --ink-dim: #9fae9f;
+  --signal: #f2b443;      /* simulated drone, primary controls */
+  --track: #62d2e3;       /* recorded ANAFI flight */
+  --warn: #ff6b57;
+  --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: #1b2420; color: var(--ink); font-family: var(--f-data); overflow: hidden; }
+#stage { position: fixed; inset: 0; background: linear-gradient(to bottom, var(--sky-top), var(--sky-low) 55%, #8a9a7e 100%); }
+#stage canvas { display: block; width: 100%; height: 100%; outline: none; }
+.hud { position: fixed; z-index: 2; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 6px;
+  backdrop-filter: blur(6px); padding: 10px 12px; font-size: 12px; line-height: 1.45; }
+.tl { top: calc(10px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); max-width: min(360px, calc(100vw - 32px)); }
+.tr { top: calc(10px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 6px; }
+.bl { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); min-width: 220px; }
+.br { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); max-width: 280px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: 0.02em; margin: 0 0 2px; text-wrap: balance; }
+.sub { color: var(--ink-dim); font-size: 11px; }
+.label { font-family: var(--f-display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; color: var(--ink-dim); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+button { font-family: var(--f-display); font-weight: 500; font-size: 12px; letter-spacing: 0.04em; color: var(--ink);
+  background: rgba(255,255,255,0.05); border: 1px solid var(--panel-line); border-radius: 4px; padding: 5px 9px; cursor: pointer; }
+button:hover { border-color: var(--ink-dim); }
+button:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+button[aria-pressed="true"] { background: var(--signal); color: #1a1406; border-color: var(--signal); }
+button.track[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #06191c; }
+.grid { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; font-variant-numeric: tabular-nums; }
+.grid b { font-weight: 500; text-align: right; }
+.legend { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--ink-dim); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+#status { margin-top: 6px; font-size: 11px; color: var(--ink-dim); }
+#alert { font-family: var(--f-display); color: var(--warn); font-weight: 600; letter-spacing: 0.06em; min-height: 1.2em; }
+kbd { font-family: var(--f-data); font-size: 11px; border: 1px solid var(--panel-line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; color: var(--ink-dim); font-size: 11px; }
+#sticks { display: none; }
+@media (pointer: coarse) {
+  #sticks { display: block; }
+  .br { display: none; }
+  .bl { bottom: calc(170px + env(safe-area-inset-bottom, 0px)); }
+}
+.stick { position: fixed; z-index: 3; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: 130px; height: 130px; border-radius: 50%;
+  border: 1px solid var(--panel-line); background: var(--panel); touch-action: none; }
+.stick.l { left: max(16px, env(safe-area-inset-left, 0px)); } .stick.r { right: max(16px, env(safe-area-inset-right, 0px)); }
+.stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--signal); opacity: .85; }
+.stick span { position: absolute; top: -18px; width: 100%; text-align: center; font-size: 10px; color: var(--ink-dim); }
+@media (max-width: 560px) { .tl { max-width: calc(100vw - 32px); } .tr { top: auto; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); } .bl { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="stage"></div>
+
+<section class="hud tl" aria-label="Scene">
+  <h1>Tuttle Park Flight Sim</h1>
+  <div class="sub">Gaussian splat rebuilt from two ANAFI videos (24 Oct 2026, 40.0076&deg;N 83.0178&deg;W). Units are meters, aligned to the drone's own GPS.</div>
+  <div class="legend"><span><span class="dot" style="background:var(--signal)"></span>Simulated drone</span><span><span class="dot" style="background:var(--track)"></span>Recorded ANAFI flight</span></div>
+  <div id="status">Loading scene&hellip;</div>
+</section>
+
+<section class="hud tr" aria-label="Controls">
+  <span class="label">Camera</span>
+  <div class="row" id="cams">
+    <button id="cam-chase" aria-pressed="true">Chase</button>
+    <button id="cam-fpv" aria-pressed="false">FPV</button>
+    <button id="cam-orbit" aria-pressed="false">Free</button>
+  </div>
+  <span class="label">Control</span>
+  <div class="row" id="modes">
+    <button id="mode-vel" aria-pressed="true" title="Command body velocity and yaw rate">Velocity</button>
+    <button id="mode-att" aria-pressed="false" title="Command roll, pitch, yaw rate and climb rate (ANAFI PCMD style)">Attitude</button>
+    <button id="mode-auto" aria-pressed="false" title="Autopilot follows the recorded GPS track">Fly recorded path</button>
+  </div>
+  <div class="row">
+    <button id="ghost" class="track" aria-pressed="true">Replay real flight</button>
+    <button id="reset">Reset</button>
+  </div>
+</section>
+
+<section class="hud bl" aria-label="Telemetry">
+  <div id="alert"></div>
+  <div class="grid" id="tele">
+    <span>Mode</span><b id="t-mode">VELOCITY</b>
+    <span>Height AGL</span><b id="t-agl">0.0 m</b>
+    <span>Ground speed</span><b id="t-gs">0.0 m/s</b>
+    <span>Climb</span><b id="t-vz">0.0 m/s</b>
+    <span>Roll / pitch</span><b id="t-rp">0 / 0&deg;</b>
+    <span>Heading</span><b id="t-hdg">000&deg;</b>
+    <span>Position E / N</span><b id="t-pos">0.0 / 0.0</b>
+    <span>Track error</span><b id="t-err">&ndash;</b>
+  </div>
+</section>
+
+<section class="hud br" aria-label="Keys">
+  <span class="label">Keys</span>
+  <div class="keys">
+    <span><kbd>W</kbd><kbd>S</kbd></span><span>forward / back (pitch)</span>
+    <span><kbd>A</kbd><kbd>D</kbd></span><span>left / right (roll)</span>
+    <span><kbd>R</kbd><kbd>F</kbd></span><span>climb / descend</span>
+    <span><kbd>Q</kbd><kbd>E</kbd></span><span>yaw left / right</span>
+    <span><kbd>T</kbd></span><span>take off to 2 m</span>
+    <span><kbd>C</kbd></span><span>next camera</span>
+  </div>
+</section>
+
+<div id="sticks" aria-hidden="true">
+  <div class="stick l" id="stick-l"><span>climb / yaw</span><i></i></div>
+  <div class="stick r" id="stick-r"><span>move</span><i></i></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.1/examples/jsm/",
+  "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import * as GS from "@mkkellogg/gaussian-splats-3d";
+
+const $ = (id) => document.getElementById(id);
+const status = (s) => { $("status").textContent = s; };
+const D2R = Math.PI / 180, G = 9.81;
+// ENU (east, north, up) -> three.js (x right, y up, z toward viewer)
+const enu2three = (e, n, u, v = new THREE.Vector3()) => v.set(e, u, -n);
+
+// ------------------------------------------------------------------ scene
+const stage = $("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, stage.clientWidth / stage.clientHeight, 0.05, 2000);
+camera.position.set(0, 6, 12);
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enabled = false;
+scene.add(new THREE.HemisphereLight(0xdfe9f2, 0x3a4a30, 2.2));
+const sun = new THREE.DirectionalLight(0xfff1d6, 1.6); sun.position.set(-30, 40, 20); scene.add(sun);
+const grid = new THREE.GridHelper(80, 40, 0x9fb59a, 0x6f7f6a);
+grid.material.transparent = true; grid.material.opacity = 0.18; grid.position.y = 0.01;
+scene.add(grid);
+
+// ------------------------------------------------------------------ drone model
+function makeDrone(color, ghost = false) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1, transparent: ghost, opacity: ghost ? 0.55 : 1 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1c2420, roughness: 0.8, transparent: ghost, opacity: ghost ? 0.55 : 1 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.24), mat); g.add(body);
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.05), dark); nose.position.set(0, -0.01, -0.14); g.add(nose); // camera, faces -z = forward
+  g.userData.rotors = [];
+  for (const [x, z] of [[0.17, 0.15], [-0.17, 0.15], [0.17, -0.15], [-0.17, -0.15]]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.015, 0.24), dark);
+    arm.position.set(x / 2, 0, z / 2); arm.lookAt(x, 0, z); g.add(arm);
+    const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.004, 20), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: ghost ? 0.25 : 0.35 }));
+    rotor.position.set(x, 0.035, z); g.add(rotor); g.userData.rotors.push(rotor);
+  }
+  g.scale.setScalar(1.6);   // ANAFI is ~0.24 m across; enlarged so it reads at park scale
+  return g;
+}
+const drone = makeDrone(0xf2b443);
+const ghost = makeDrone(0x62d2e3, true);
+scene.add(drone, ghost);
+
+// ------------------------------------------------------------------ data
+let track = null, occ = null;
+async function loadJSON(path) { const r = await fetch(path); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+
+const splat = new GS.DropInViewer({ gpuAcceleratedSort: false, sharedMemoryForWorkers: false, integerBasedSort: false, dynamicScene: false });
+scene.add(splat);
+
+Promise.all([loadJSON("track.json"), loadJSON("occupancy.json"), loadJSON("scene_meta.json")])
+  .then(([t, o, meta]) => {
+    track = t; occ = o;
+    occ.set = new Set(occ.cells.map((c) => c.join(",")));
+    if (meta.sky) {
+      const c = (v) => `rgb(${v.map((x) => Math.round(Math.max(0, Math.min(1, x)) * 255)).join(",")})`;
+      stage.style.background = `linear-gradient(to bottom, ${c(meta.sky[1])}, ${c(meta.sky[0])} 60%, #7d8d6f 100%)`;
+    }
+    drawTrack(); resetDrone();
+    status(`Scene: ${meta.count.toLocaleString()} gaussians. Recorded flight: ${track.t.length} samples over ${track.t.at(-1).toFixed(0)} s. Camera fit to GPS: median ${meta.align_median_m.toFixed(1)} m.`);
+    return fetch("scene_splat.b64.txt").then((r) => r.text()).then((b64) => {
+      const bin = Uint8Array.from(atob(b64.trim()), (ch) => ch.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bin], { type: "application/octet-stream" }));
+      return splat.addSplatScene(url, { showLoadingUI: false, format: GS.SceneFormat.Splat, splatAlphaRemovalThreshold: 5, progressiveLoad: false });
+    });
+  })
+  .catch((e) => status("Could not load the scene: " + e.message));
+
+function drawTrack() {
+  const pts = track.enu.map(([e, n, u]) => enu2three(e, n, u));
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x62d2e3, transparent: true, opacity: 0.85 }));
+  scene.add(line);
+  const shadow = new THREE.Line(new THREE.BufferGeometry().setFromPoints(track.enu.map(([e, n]) => enu2three(e, n, 0.02))),
+    new THREE.LineDashedMaterial({ color: 0x62d2e3, dashSize: 0.3, gapSize: 0.3, transparent: true, opacity: 0.35 }));
+  shadow.computeLineDistances(); scene.add(shadow);
+}
+function trackAt(t) {   // linear interpolation of recorded ENU position and yaw
+  const T = track.t, n = T.length;
+  t = ((t % T[n - 1]) + T[n - 1]) % T[n - 1];
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (T[m] <= t) lo = m; else hi = m; }
+  const a = (t - T[lo]) / Math.max(1e-6, T[hi] - T[lo]), A = track.enu[lo], B = track.enu[hi];
+  let dy = track.yaw[hi] - track.yaw[lo]; dy = ((dy + 540) % 360) - 180;
+  return { p: [A[0] + a * (B[0] - A[0]), A[1] + a * (B[1] - A[1]), A[2] + a * (B[2] - A[2])], yaw: track.yaw[lo] + a * dy };
+}
+
+// ------------------------------------------------------------------ dynamics
+// State in ENU. Yaw is heading in degrees clockwise from north (like the ANAFI); roll/pitch in radians.
+const P = { maxTilt: 25 * D2R, tauAtt: 0.15, tauVz: 0.35, drag: 0.35, kv: 2.2, maxV: 6, maxVz: 2.5, maxYawRate: 90 };
+const s = { p: [0, 0, 0], v: [0, 0, 0], roll: 0, pitch: 0, yaw: 0, landed: true, t: 0 };
+let mode = "vel";
+function resetDrone() {
+  const start = track ? track.enu[0] : [0, 0, 0];
+  Object.assign(s, { p: [start[0], start[1], 0], v: [0, 0, 0], roll: 0, pitch: 0, yaw: track ? track.yaw[0] : 0, landed: true, t: 0 });
+  simClock = 0; ghostClock = 0; errs.length = 0;
+}
+const input = { fwd: 0, right: 0, up: 0, yaw: 0 };   // each in [-1, 1]
+const keys = new Set();
+addEventListener("keydown", (e) => {
+  if (e.target.closest("button")) return;
+  const k = e.key.toLowerCase();
+  if (k === "c") cycleCamera();
+  if (k === "t") { s.landed = false; takeoffTarget = 2; }
+  keys.add(k);
+});
+addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+addEventListener("blur", () => keys.clear());
+let takeoffTarget = null, simClock = 0, ghostClock = 0;
+const errs = [];
+
+function readKeys() {
+  const ax = (a, b) => (keys.has(a) ? 1 : 0) - (keys.has(b) ? 1 : 0);
+  input.fwd = ax("w", "s") || touch.fwd; input.right = ax("d", "a") || touch.right;
+  input.up = ax("r", "f") || touch.up; input.yaw = ax("e", "q") || touch.yaw;
+}
+
+function step(dt) {
+  const yawR = s.yaw * D2R;
+  const fwdE = Math.sin(yawR), fwdN = Math.cos(yawR), rightE = Math.cos(yawR), rightN = -Math.sin(yawR);
+  let rollCmd = 0, pitchCmd = 0, vzCmd = 0, yawRate = 0;
+  if (takeoffTarget !== null) { vzCmd = Math.max(-1, Math.min(1.5, 1.5 * (takeoffTarget - s.p[2]))); if (Math.abs(takeoffTarget - s.p[2]) < 0.1 && !input.up) takeoffTarget = null; }
+  if (mode === "auto" && track) {
+    const tgt = trackAt(simClock), ahead = trackAt(simClock + 0.5);
+    const vff = [(ahead.p[0] - tgt.p[0]) / 0.5, (ahead.p[1] - tgt.p[1]) / 0.5, (ahead.p[2] - tgt.p[2]) / 0.5];
+    const vdes = [0, 1, 2].map((i) => vff[i] + 1.2 * (tgt.p[i] - s.p[i]));
+    const aE = P.kv * (vdes[0] - s.v[0]), aN = P.kv * (vdes[1] - s.v[1]);
+    pitchCmd = Math.atan2(aE * fwdE + aN * fwdN, G); rollCmd = Math.atan2(aE * rightE + aN * rightN, G);
+    vzCmd = vdes[2];
+    let dyaw = ((tgt.yaw - s.yaw + 540) % 360) - 180; yawRate = Math.max(-P.maxYawRate, Math.min(P.maxYawRate, 2 * dyaw));
+    s.landed = false;
+    errs.push(Math.hypot(tgt.p[0] - s.p[0], tgt.p[1] - s.p[1], tgt.p[2] - s.p[2]));
+    if (errs.length > 600) errs.shift();
+  } else if (mode === "vel") {
+    const vf = input.fwd * P.maxV, vr = input.right * P.maxV;
+    const vdesE = vf * fwdE + vr * rightE, vdesN = vf * fwdN + vr * rightN;
+    const aE = P.kv * (vdesE - s.v[0]), aN = P.kv * (vdesN - s.v[1]);
+    pitchCmd = Math.atan2(aE * fwdE + aN * fwdN, G); rollCmd = Math.atan2(aE * rightE + aN * rightN, G);
+    if (takeoffTarget === null) vzCmd = input.up * P.maxVz;
+    yawRate = input.yaw * P.maxYawRate;
+  } else {   // attitude: sticks map straight to tilt angles, like ANAFI PCMD
+    pitchCmd = input.fwd * P.maxTilt; rollCmd = input.right * P.maxTilt;
+    if (takeoffTarget === null) vzCmd = input.up * P.maxVz;
+    yawRate = input.yaw * P.maxYawRate;
+  }
+  if (input.up > 0) s.landed = false;
+  pitchCmd = Math.max(-P.maxTilt, Math.min(P.maxTilt, pitchCmd));
+  rollCmd = Math.max(-P.maxTilt, Math.min(P.maxTilt, rollCmd));
+  if (s.landed) { s.v = [0, 0, 0]; s.roll = s.pitch = 0; return; }
+  // attitude responds with a first-order lag; tilt produces horizontal acceleration
+  s.pitch += (pitchCmd - s.pitch) * Math.min(1, dt / P.tauAtt);
+  s.roll += (rollCmd - s.roll) * Math.min(1, dt / P.tauAtt);
+  s.yaw = (s.yaw + yawRate * dt + 360) % 360;
+  const aF = G * Math.tan(s.pitch), aR = G * Math.tan(s.roll);
+  const aE = aF * fwdE + aR * rightE - P.drag * s.v[0];
+  const aN = aF * fwdN + aR * rightN - P.drag * s.v[1];
+  s.v[0] += aE * dt; s.v[1] += aN * dt;
+  const vz = Math.max(-P.maxVz, Math.min(P.maxVz, vzCmd));
+  s.v[2] += (vz - s.v[2]) * Math.min(1, dt / P.tauVz);
+  for (let i = 0; i < 3; i++) s.p[i] += s.v[i] * dt;
+  if (s.p[2] <= 0) { s.p[2] = 0; if (s.v[2] < 0) s.v[2] = 0; if (Math.hypot(s.v[0], s.v[1]) < 0.3 && input.up <= 0 && mode !== "auto") s.landed = true; }
+}
+function nearObstacle() {   // occupancy grid built from opaque splats above the lawn
+  if (!occ) return false;
+  const c = occ.cell, r = 1;
+  const i0 = Math.floor(s.p[0] / c), j0 = Math.floor(s.p[1] / c), k0 = Math.floor(s.p[2] / c);
+  for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (let k = -r; k <= r; k++)
+    if (occ.set.has(`${i0 + i},${j0 + j},${k0 + k}`)) return true;
+  return false;
+}
+
+// ------------------------------------------------------------------ cameras
+let camMode = "chase";
+const camIds = ["chase", "fpv", "orbit"];
+function setCamera(m) {
+  camMode = m; orbit.enabled = m === "orbit";
+  for (const id of camIds) $("cam-" + id).setAttribute("aria-pressed", String(id === m));
+  if (m === "orbit") { orbit.target.copy(drone.position); }
+  drone.visible = m !== "fpv";
+}
+function cycleCamera() { setCamera(camIds[(camIds.indexOf(camMode) + 1) % camIds.length]); }
+for (const id of camIds) $("cam-" + id).addEventListener("click", () => setCamera(id));
+function setMode(m) {
+  mode = m;
+  for (const id of ["vel", "att", "auto"]) $("mode-" + id).setAttribute("aria-pressed", String(id === m));
+  $("t-mode").textContent = { vel: "VELOCITY", att: "ATTITUDE", auto: "AUTOPILOT" }[m];
+  if (m === "auto") { resetDrone(); s.landed = false; setGhost(true); }
+  errs.length = 0;
+}
+for (const id of ["vel", "att", "auto"]) $("mode-" + id).addEventListener("click", () => setMode(id));
+let ghostOn = true;
+function setGhost(on) { ghostOn = on; ghost.visible = on; $("ghost").setAttribute("aria-pressed", String(on)); }
+$("ghost").addEventListener("click", () => setGhost(!ghostOn));
+$("reset").addEventListener("click", () => { resetDrone(); if (mode === "auto") s.landed = false; });
+
+// ------------------------------------------------------------------ touch sticks
+const touch = { fwd: 0, right: 0, up: 0, yaw: 0 };
+function bindStick(el, onMove) {
+  const knob = el.querySelector("i");
+  const move = (e) => {
+    const r = el.getBoundingClientRect();
+    let x = (e.clientX - r.left) / r.width * 2 - 1, y = (e.clientY - r.top) / r.height * 2 - 1;
+    const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; }
+    knob.style.transform = `translate(${x * 42}px, ${y * 42}px)`; onMove(x, -y);
+  };
+  const end = () => { knob.style.transform = ""; onMove(0, 0); };
+  el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); move(e); if (s.landed) { s.landed = false; takeoffTarget = 2; } });
+  el.addEventListener("pointermove", (e) => { if (el.hasPointerCapture(e.pointerId)) move(e); });
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+}
+bindStick($("stick-l"), (x, y) => { touch.yaw = x; touch.up = y; });
+bindStick($("stick-r"), (x, y) => { touch.right = x; touch.fwd = y; });
+
+// ------------------------------------------------------------------ loop
+const q = new THREE.Quaternion(), e3 = new THREE.Euler();
+function poseObject(obj, p, yawDeg, roll, pitch) {
+  enu2three(p[0], p[1], p[2] + 0.05, obj.position);
+  // three: yaw about +y (counterclockwise), heading is clockwise from north (-z)
+  e3.set(-pitch, -yawDeg * D2R, -roll, "YXZ"); obj.quaternion.setFromEuler(e3);
+}
+const camOff = new THREE.Vector3(), look = new THREE.Vector3();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  readKeys();
+  const sub = 8;
+  for (let i = 0; i < sub; i++) step(dt / sub);
+  if (!s.landed) simClock += dt;
+  ghostClock += dt;
+  poseObject(drone, s.p, s.yaw, s.roll, s.pitch);
+  for (const r of drone.userData.rotors) r.rotation.y += s.landed ? 0 : 0.9;
+  if (track && ghostOn) {
+    const g = trackAt(mode === "auto" ? simClock : ghostClock);
+    poseObject(ghost, g.p, g.yaw, 0, 0);
+    for (const r of ghost.userData.rotors) r.rotation.y += 0.9;
+  }
+  // camera
+  const yawR = s.yaw * D2R;
+  if (camMode === "chase") {
+    camOff.set(-Math.sin(yawR) * 4.5, 2.2, Math.cos(yawR) * 4.5);   // behind the drone
+    const want = drone.position.clone().add(camOff);
+    want.y = Math.max(want.y, 0.4);
+    camera.position.lerp(want, 1 - Math.exp(-dt * 4));
+    look.copy(drone.position).add(new THREE.Vector3(Math.sin(yawR) * 3, 0.3, -Math.cos(yawR) * 3));
+    camera.lookAt(look);
+  } else if (camMode === "fpv") {
+    camera.position.copy(drone.position);
+    e3.set(-10 * D2R, -yawR, 0, "YXZ"); camera.quaternion.setFromEuler(e3);   // gimbal tilted 10 deg down
+  } else { orbit.update(); }
+  // HUD
+  const gs = Math.hypot(s.v[0], s.v[1]);
+  $("t-agl").textContent = s.p[2].toFixed(1) + " m";
+  $("t-gs").textContent = gs.toFixed(1) + " m/s";
+  $("t-vz").textContent = (s.v[2] >= 0 ? "+" : "") + s.v[2].toFixed(1) + " m/s";
+  $("t-rp").textContent = `${(s.roll / D2R).toFixed(0)} / ${(s.pitch / D2R).toFixed(0)}°`;
+  $("t-hdg").textContent = String(Math.round(s.yaw) % 360).padStart(3, "0") + "°";
+  $("t-pos").textContent = `${s.p[0].toFixed(1)} / ${s.p[1].toFixed(1)}`;
+  if (mode === "auto" && errs.length) {
+    const m = errs.reduce((a, b) => a + b, 0) / errs.length;
+    $("t-err").textContent = `${errs.at(-1).toFixed(2)} m (avg ${m.toFixed(2)})`;
+  } else $("t-err").textContent = "–";
+  $("alert").textContent = s.landed ? "LANDED · press T or R to take off" : (nearObstacle() ? "OBSTACLE WITHIN 1 m" : "");
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener("resize", () => {
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
+});
+requestAnimationFrame(frame);
+</script>
