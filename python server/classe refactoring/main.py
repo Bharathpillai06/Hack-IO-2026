@@ -131,21 +131,26 @@ if __name__ == '__main__':
     
     
 def make_http_listener(port=5000):
-    # Bind dual-stack (IPv4 + IPv6) so both 127.0.0.1 and ::1 "localhost" work.
-    # Windows IPv6 sockets are IPv6-only by default, which broke 127.0.0.1 clients.
+    # Dual-stack (IPv4 + IPv6) so both 127.0.0.1 and ::1 "localhost" work; Windows
+    # IPv6 sockets are IPv6-only by default. The socket must be a *gevent* socket:
+    # a plain socket.socket makes WSGIServer block forever and never answer.
+    from gevent import socket as gsocket
     host=os.environ.get("TWINFLIE_HTTP_HOST")
     if host:
         return (host,port)
-    try:
-        s=socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        if os.name!="nt":
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("::",port))
-        s.listen(128)
-        return s
-    except OSError:
-        return ("0.0.0.0",port)
+    for family,addr in ((socket.AF_INET6,"::"),(socket.AF_INET,"0.0.0.0")):
+        try:
+            s=gsocket.socket(family, socket.SOCK_STREAM)
+            if family==socket.AF_INET6:
+                s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            if os.name!="nt":
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((addr,port))
+            s.listen(128)
+            return s
+        except OSError:
+            continue
+    return ("0.0.0.0",port)
 
 http=WSGIServer(make_http_listener(),app)
 
