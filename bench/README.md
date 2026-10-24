@@ -34,3 +34,12 @@ Start `python main.py` in `python server/classe refactoring`. Open `godot client
 - `drones_collection.py` picks `MockUAV` for `mock://` URLs, adds a `t` timestamp per drone, and returns fake anchors for mocks
 - `main.py` adds `/stats` and `/stats/reset` (UDP tx counters) and a configurable HTTP bind host
 - `UAV_ciccio.py` drops unused imports (`turtle` pulled in tkinter)
+
+## ANAFI (Ubuntu laptop)
+```
+./setup_ubuntu.sh                       # Python 3.10-3.12 venv with Olympe, then a mock smoke test
+. .venv/bin/activate
+python bench/anafi_check.py             # ground check: connects, reports telemetry rates, never flies
+```
+Join the drone's `ANAFI-xxxx` Wi-Fi first. In Godot or the HTTP API the drone URL is `anafi:__192.168.42.1`.
+`AnafiUAV` uses a local frame (x east, y north, z up) with the first GPS fix as the origin, and fills in position between GPS updates from the speed events. Targets more than 30 m from the origin or above 10 m are refused. Without a GPS fix it falls back to relative `moveBy` moves, which drift.

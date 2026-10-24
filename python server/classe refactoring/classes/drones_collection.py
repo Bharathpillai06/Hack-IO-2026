@@ -68,7 +68,13 @@ class drones_collection():
             return self.drones[url]    
         self.lock_drones.release()
     
-        uavTest = MockUAV(url) if url.startswith("mock") else UAV(url)
+        if url.startswith("mock"):
+            uavTest = MockUAV(url)
+        elif url.startswith("anafi"):
+            from classes.uav.AnafiUAV import AnafiUAV   # Olympe: Linux, Python <= 3.12
+            uavTest = AnafiUAV(url)
+        else:
+            uavTest = UAV(url)
 
         uavTest.events.on(UAVEvents.CONNECTED,
                       lambda uri:
@@ -135,7 +141,7 @@ class drones_collection():
             return json
 
         first = list(self.drones.values())[0]
-        if isinstance(first, MockUAV):
+        if not hasattr(first, "crazyflie"):   # mock or ANAFI: no LPS anchors
             self.lock_drones.release()
             if not self.anchor_pos:
                 self.anchor_pos.update(MOCK_ANCHORS)
@@ -266,7 +272,7 @@ class drones_collection():
             return json
 
         first = list(self.drones.values())[0]
-        if isinstance(first, MockUAV):
+        if not hasattr(first, "crazyflie"):
             for id, pos in data.items():
                 self.anchor_pos[int(id)] = (float(pos["x"]), float(pos["z"]), float(pos["y"]))
             self.lock_drones.release()
