@@ -130,8 +130,24 @@ if __name__ == '__main__':
     th2.start()
     
     
-import os
-http=WSGIServer((os.environ.get("TWINFLIE_HTTP_HOST",""),5000),app)
+def make_http_listener(port=5000):
+    # Bind dual-stack (IPv4 + IPv6) so both 127.0.0.1 and ::1 "localhost" work.
+    # Windows IPv6 sockets are IPv6-only by default, which broke 127.0.0.1 clients.
+    host=os.environ.get("TWINFLIE_HTTP_HOST")
+    if host:
+        return (host,port)
+    try:
+        s=socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        if os.name!="nt":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("::",port))
+        s.listen(128)
+        return s
+    except OSError:
+        return ("0.0.0.0",port)
+
+http=WSGIServer(make_http_listener(),app)
 
 http.serve_forever()
     
