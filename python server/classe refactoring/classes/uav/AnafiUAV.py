@@ -12,8 +12,13 @@ Safety: targets outside MAX_RADIUS_M from origin or above MAX_ALT_M are refused.
 Requires Linux and Python <= 3.12 (Olympe breaks on 3.13).
 """
 import math
+import os
 import threading
 import time
+
+# Olympe imports PyOpenGL; on Wayland (Ubuntu 24.04 default) PyOpenGL picks EGL and
+# Olympe's GLX import then crashes. Force GLX (works through XWayland).
+os.environ.setdefault("PYOPENGL_PLATFORM", "glx")
 
 from pymitter import EventEmitter
 

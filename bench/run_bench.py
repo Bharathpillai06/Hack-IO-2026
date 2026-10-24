@@ -27,12 +27,17 @@ import godot_emulator  # noqa: E402
 HTTP = "http://127.0.0.1:5000"
 
 
+# Ignore http_proxy/https_proxy env vars: campus machines often set them, and urllib
+# would send 127.0.0.1 requests to the proxy, so the server looks like it never came up.
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def get(path, timeout=10):
-    with urllib.request.urlopen(HTTP + path, timeout=timeout) as r:
+    with _OPENER.open(HTTP + path, timeout=timeout) as r:
         return r.read().decode()
 
 
-def wait_http(proc, timeout=20):
+def wait_http(proc, timeout=45):
     t0 = time.time()
     while time.time() - t0 < timeout:
         if proc.poll() is not None:

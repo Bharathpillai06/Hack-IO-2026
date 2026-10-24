@@ -24,7 +24,11 @@ fi
 python -m pip install -q --upgrade pip
 echo "[2/3] installing parrot-olympe (+ deps its package misses) and server deps"
 python -m pip install -q parrot-olympe certifi pysdl2 PyOpenGL flask gevent pymitter cflib psutil
-python -c "import olympe" 2>/dev/null && echo "      olympe import ok"
+# Wayland sessions make PyOpenGL pick EGL, which breaks Olympe's GLX import
+grep -q PYOPENGL_PLATFORM .venv/bin/activate || echo 'export PYOPENGL_PLATFORM=glx' >> .venv/bin/activate
+export PYOPENGL_PLATFORM=glx
+if python -c "import olympe" >/dev/null 2>&1; then echo "      olympe import ok"
+else echo "      olympe import FAILED:"; python -c "import olympe" 2>&1 | grep -v INFO | tail -3; fi
 
 echo "[3/3] smoke test with mock drones"
 python bench/run_bench.py --n 1 3 --secs 5 --label smoke-ubuntu
