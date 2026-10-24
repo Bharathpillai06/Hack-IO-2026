@@ -77,7 +77,7 @@ class AnafiUAV:
     MAX_RADIUS_M = 30.0     # geofence around origin
     MAX_ALT_M = 10.0
     MOVE_TIMEOUT = 60.0
-    CONNECT_TIMEOUT = 15.0
+    CONNECT_TIMEOUT = 45.0   # Olympe enforces a 45 s minimum
 
     def __init__(self, uri) -> None:
         self.uri = uri
@@ -126,12 +126,26 @@ class AnafiUAV:
             return
         self.listener = _Listener(self, self.drone)
         self.listener.subscribe()
+        self._read_initial_state()
         self.connected = True
         self.events.emit(UAVEvents.CONNECTED, self)
         self.positionEstimated = True
         self.events.emit(UAVEvents.POSITION_READY)
         self.mc = self
         self.events.emit(UAVEvents.CONTROLLER_READY, self)
+
+    def _read_initial_state(self):
+        # Battery and flying state are only sent on change; their first values arrive
+        # during connect(), before the listener exists. Read the cached state instead.
+        for msg, apply in (
+            (BatteryStateChanged, lambda a: self._on_battery(a["percent"])),
+            (FlyingStateChanged, lambda a: setattr(
+                self, "flying_state", str(a["state"]).split(".")[-1])),
+        ):
+            try:
+                apply(self.drone.get_state(msg))
+            except Exception:   # noqa: BLE001  state not received yet
+                pass
 
     def disconnect(self):
         try:
