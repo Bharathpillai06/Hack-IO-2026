@@ -1,17 +1,17 @@
 # Hack-IO-2026
 
-A quick simulator for drone missions, built from drone video of the place you want to fly.
+A simulator for drone missions, built from drone video of the place you want to fly.
 
-Record a video of an area, and Hack-IO-2026 rebuilds it as a 3D Gaussian splat in real meters, drops a simple 6-DOF drone model into it, and lets you fly missions with velocity or attitude commands. With an ANAFI, it also replays the real flight from the drone's own GPS log, so you can compare the simulated drone against the real one.
+Record a video of an area, and this project aims to rebuild it as a 3D Gaussian splat, drops a simple 6-DOF drone model into it, and lets you fly missions with velocity or attitude commands. With an ANAFI(More to come), it also replays the real flight from the drone's own GPS log, so you can compare the simulated drone against the real one.
 
-Demo scene: Tuttle Park, Columbus OH, rebuilt from two ANAFI flights on 24 Oct 2026.
+Demo scene: Tuttle Park, Columbus OH, rebuilt from two 1 min ANAFI flights on 24 Oct 2026.
 
 ## What it does
 
 | Part | What you get |
 |---|---|
 | Video to 3D world | `splat/build_scene.py`: frames, camera poses (COLMAP), Gaussian splat training on CPU. Works for any location. |
-| Real-world scale | ANAFI GPS read straight from the MP4 metadata (camera path fits GPS to 0.67 m median at Tuttle Park), or a printed ArUco tag for any other camera. |
+| Real-world scale | ANAFI GPS read straight from the MP4 metadata (camera path fits GPS to 0.67 m median at Tuttle Park), or a printed ArUco tag(Measured image for depth estimation) for any other camera. |
 | Drone model | Position + roll, pitch, yaw. Tilt-driven acceleration, first-order attitude and climb response, drag, 25° tilt and speed limits. |
 | Control | Velocity mode (x/y/z velocity + yaw rate), attitude mode (roll, pitch, yaw rate, climb; same inputs as ANAFI manual control), and an autopilot that flies the recorded GPS track and reports tracking error. |
 | Views | Chase, FPV (drone camera inside the splat), free orbit. |
