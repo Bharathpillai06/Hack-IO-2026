@@ -54,6 +54,9 @@ def find_scene_file(name, rel):
     return None
 
 
+LATEST_POSE = {"pose": None}   # posted by hackio_sim.Sim(viz=...) scripts
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=os.path.join(bundle_dir(), "web"), **kw)
@@ -82,6 +85,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
                     "</head><body>" + html + "</body></html>")
             return self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+        if path == "/api/pose":
+            return self._send(json.dumps(LATEST_POSE["pose"]).encode(), "application/json")
         if path == "/scenes/index.json":
             return self._send(json.dumps(list_scenes()).encode(), "application/json")
         if path.startswith("/scenes/"):
@@ -94,23 +99,41 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
 
+def _post(self):
+    if urlparse(self.path).path != "/api/pose":
+        self.send_error(404); return
+    n = int(self.headers.get("Content-Length", 0))
+    try:
+        LATEST_POSE["pose"] = json.loads(self.rfile.read(n) or b"null")
+    except ValueError:
+        self.send_error(400); return
+    self._send(b"ok", "text/plain")
+
+
+Handler.do_POST = _post
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("scene", nargs="?")
-    ap.add_argument("--port", type=int, default=0)
+    ap.add_argument("--port", type=int, default=8800, help="0 = any free port")
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
     scenes = list_scenes()
     if not scenes:
         print("No scenes found. Put scene folders (made by build_scene.py) in:", os.path.join(app_dir(), "scenes"))
     port = a.port
-    if not port:
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]
+    with socket.socket() as s:   # fall back to a free port if 8800 is taken
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
     srv = socketserver.ThreadingTCPServer(("127.0.0.1", port), Handler)
     srv.daemon_threads = True
     name = a.scene or (scenes[0] if scenes else "")
     url = f"http://127.0.0.1:{port}/#{name}"
+    print(f"Scripts can stream to this window: Sim(..., viz='http://127.0.0.1:{port}')")
     print(f"Hack-IO-2026 Sim running at {url}\nScenes: {', '.join(scenes) or 'none'}\nClose this window to stop.")
     if not a.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()

@@ -373,12 +373,27 @@ function poseObject(obj, p, yawDeg, roll, pitch) {
   e3.set(-pitch, -yawDeg * D2R, -roll, "YXZ"); obj.quaternion.setFromEuler(e3);
 }
 const camOff = new THREE.Vector3(), look = new THREE.Vector3();
+// Live view of Python scripts (hackio_sim.Sim(viz=...)): the desktop app relays their poses
+let ext = null, extAt = 0, extLastT = -1;
+(function pollScript() {
+  fetch("api/pose").then((r) => (r.ok ? r.json() : Promise.reject())).then((p) => {
+    if (p && p.t !== extLastT) { ext = p; extAt = performance.now(); extLastT = p.t; }
+    setTimeout(pollScript, 50);
+  }).catch(() => {});   // not running in the desktop app: stop polling
+})();
 let last = performance.now(), manual = false;
 function frame(now, fixedDt) {
   const dt = fixedDt ?? Math.min(0.05, (now - last) / 1000); last = now;
   readKeys();
-  const sub = 8;
-  for (let i = 0; i < sub; i++) step(dt / sub);
+  const scriptLive = ext && performance.now() - extAt < 1500;
+  if (scriptLive) {
+    s.p = [...ext.p]; s.v = [...ext.v]; s.roll = ext.roll; s.pitch = ext.pitch; s.yaw = ext.yaw; s.landed = ext.landed;
+    $("t-mode").textContent = "SCRIPT";
+  } else {
+    if ($("t-mode").textContent === "SCRIPT") $("t-mode").textContent = { vel: "VELOCITY", att: "ATTITUDE", auto: "AUTOPILOT" }[mode];
+    const sub = 8;
+    for (let i = 0; i < sub; i++) step(dt / sub);
+  }
   if (!s.landed) simClock += dt;
   ghostClock += dt;
   poseObject(drone, s.p, s.yaw, s.roll, s.pitch);

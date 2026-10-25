@@ -8,3 +8,8 @@ build/
 dist/
 *.spec
 scenes/*/work/
+
+# scripted sim output
+*_log.csv
+splat/sim/_section.md
+__pycache__/

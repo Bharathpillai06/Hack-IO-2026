@@ -33,6 +33,33 @@ Demo scene: Tuttle Park, Columbus OH, rebuilt from two 1 min ANAFI flights on 24
 
 Linux/macOS: `python splat/build_scene.py video.mp4 --name my-field`, then `python splat/app/sim_launcher.py`.
 
+## Scripted simulations (test your control code)
+
+`splat/sim/hackio_sim.py` runs the same drone model as the sim page, headless, from Python (standard library only). Write a mission or a controller, run it, and check the result in code or in a test.
+
+```python
+from hackio_sim import Sim
+
+sim = Sim("tuttle-park")                 # add viz="http://127.0.0.1:8800" to watch it in HackIO-Sim.exe
+sim.takeoff(2.0)
+sim.goto(10, 5, 2)                       # metres: x east, y north, z up (origin = takeoff spot)
+sim.velocity(vx=1.0, vz=0, seconds=3, frame="body")
+sim.attitude(roll_deg=0, pitch_deg=-10, yaw_rate=0, vz=0, seconds=2)
+sim.land()
+print(sim.report())                      # flight time, distance, max speed, collisions
+sim.save_log("flight.csv")
+```
+
+Other calls: `state()`, `hover()`, `fly_recorded_track()` (flies the real ANAFI GPS path and returns tracking error), `in_collision()`, `near_obstacle()`, `path_is_clear(a, b)`, `reset()`.
+
+- Examples: `splat/sim/examples/square_mission.py`, `replay_real_flight.py`, and `my_controller.py` (a template: fill in `control(state, t)`).
+- Watch a script live: open `HackIO-Sim.exe`, then run `run_mission.bat` (or add `--viz http://127.0.0.1:8800` to any example). The page switches to SCRIPT mode and follows the scripted drone.
+- Real-world missions (`splat/sim/missions.py`), with the settings commercial missions use:
+  - Lawnmower grid for mapping or a search-and-rescue sweep: `lawnmower(polygon, height, side_overlap=0.75)` picks line spacing from the ANAFI camera footprint and the line angle that gives the shortest path, then `fly()` scores photo coverage and overlap. `python splat/sim/examples/lawnmower_mission.py`
+  - Orbit a point of interest with the camera locked on it: `orbit(center, radius, height)`, scored on radius and aim error. `python splat/sim/examples/orbit_mission.py`
+  - `--export anafi_mission.py` on either example writes an Olympe script that flies the same waypoints on the real ANAFI (`moveTo`, gimbal pitch, video recording). It refuses plans over 30 m high or 60 m from takeoff and asks you to type FLY first.
+- Tests: `pytest splat/sim/tests`. At Tuttle Park the square mission reaches every waypoint with a clear path, and replaying the real flight tracks it with 0.23 m mean error.
+
 ## Capturing a good scene
 
 Fly or walk a full slow circle around the area with the camera aimed at the center, at two heights, in steady light, with nothing moving through the shot. Lock exposure and keep the zoom at 1x. Add a printed ArUco tag (DICT_4X4_50, id 0) if the camera has no GPS.
@@ -58,7 +85,7 @@ The Tuttle Park scene is a proof of concept. Most of its rough edges come from t
 
 ## Layout
 
-- `splat/`: scene builder (`build_scene.py`, `mp4meta.py`, `train_gs.py`), sim page (`site/`), desktop launcher (`app/`)
+- `splat/`: scene builder (`build_scene.py`, `mp4meta.py`, `train_gs.py`), sim page (`site/`), desktop launcher (`app/`), scripted sim API (`sim/`)
 - `scenes/`: built scenes (Tuttle Park included)
 - `bench/`: ANAFI telemetry extractor, ANAFI ground check, digital-twin latency benchmark
 - `python server/`, `godot client/`: the Twinflie orchestrator this project extends, with `MockUAV` and `AnafiUAV` added
