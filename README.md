@@ -66,11 +66,11 @@ Fly or walk a full slow circle around the area with the camera aimed at the cent
 
 ## Limitations
 
-The Tuttle Park scene is a proof of concept. Most of its rough edges come from the footage and the hardware, not the pipeline.
+The Tuttle Park scene is a proof of concept. Most of its blur came from the footage and the hardware, not the pipeline.
 
 - **Camera angle.** The footage was not shot for reconstruction. In the main clip the camera faced north-northwest in about 95% of frames while the drone flew forward, with the gimbal between 0° and -21°. There was no orbit around the area. The splat only looks right from roughly the directions the drone actually looked, and it smears when you turn around.
-- **Wind.** It was gusty. Wind pushed the drone off its line and made the footage less steady, and gusts show up in the GPS track. The sim has no wind model, so the autopilot's tracking error compares a calm simulated drone against a real one that was being blown around.
-- **Time.** This was built in one hackathon. I got one short session at the field (about 3 minutes of video, flown near sunset), so the light was low, shadows moved, and auto exposure changed from 2.7 to 8 ms during the flight. A person also walks through one clip. I didn't get an ArUco tag into the shot, so scale comes from GPS alone (consumer GPS wanders 1 to 2 m).
+- **Wind.** Wind pushed the drone off its line and made the footage less steady, and gusts show up in the GPS track. The sim has no wind model, so the autopilot's tracking error compares a calm simulated drone against a real one that was being blown around.
+- **Time.** This was built in 24hrs. I got one short session at the field (about 3 minutes of video, flown near sunset), so the light was low, shadows moved, and auto exposure changed from 2.7 to 8 ms during the flight. A person also walks through one clip. I didn't get an ArUco tag into the shot, so scale comes from GPS alone (consumer GPS wanders 1 to 2 m).
 - **No NVIDIA GPU.** I had no CUDA GPU, so everything ran on CPU: about 35 minutes to solve camera poses for 165 frames and about 25 minutes to train the splat at 320x180. Each attempt took about an hour, so I couldn't retest with different settings or a new capture. The low training resolution is the main reason the scene is blurry. With a CUDA GPU, nerfstudio or FiGS would train a sharper splat in minutes.
 - **Scene content.** An open lawn is hard to reconstruct: the grass looks the same everywhere and the tree line is too far away to give much depth. Most of the detail sits along the path the drone actually flew.
 - **Sim model.** The drone model is intentionally simple. It has no thrust, body-rate or motor model and no wind. Collision checking only warns when the drone gets close to something; the drone doesn't physically stop or bounce. Splat-Nav-style ellipsoid collision and corridor planning are not built yet.
