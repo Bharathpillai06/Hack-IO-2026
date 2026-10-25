@@ -6,6 +6,12 @@ Record a video of an area, and this project aims to rebuild it as a 3D Gaussian 
 
 Demo scene: Tuttle Park, Columbus OH, rebuilt from two 1 min ANAFI flights on 24 Oct 2026.
 
+## Demo
+
+![Flying the Tuttle Park scene in FPV](docs/demo-preview.gif)
+
+[Watch the full 41 s demo video](docs/HackIO-2026-demo.mp4): takeoff, velocity mode, FPV, attitude mode, and the autopilot flying the real ANAFI GPS track.
+
 ## What it does
 
 | Part | What you get |
@@ -30,6 +36,25 @@ Linux/macOS: `python splat/build_scene.py video.mp4 --name my-field`, then `pyth
 ## Capturing a good scene
 
 Fly or walk a full slow circle around the area with the camera aimed at the center, at two heights, in steady light, with nothing moving through the shot. Lock exposure and keep the zoom at 1x. Add a printed ArUco tag (DICT_4X4_50, id 0) if the camera has no GPS.
+
+## Limitations
+
+The Tuttle Park scene is a proof of concept. Most of its rough edges come from the footage and the hardware, not the pipeline.
+
+- **Camera angle.** The footage was not shot for reconstruction. In the main clip the camera faced north-northwest in about 95% of frames while the drone flew forward, with the gimbal between 0° and -21°. There was no orbit around the area. The splat only looks right from roughly the directions the drone actually looked, and it smears when you turn around.
+- **Wind.** It was gusty. Wind pushed the drone off its line and made the footage less steady, and gusts show up in the GPS track. The sim has no wind model, so the autopilot's tracking error compares a calm simulated drone against a real one that was being blown around.
+- **Time.** This was built in one hackathon. I got one short session at the field (about 3 minutes of video, flown near sunset), so the light was low, shadows moved, and auto exposure changed from 2.7 to 8 ms during the flight. A person also walks through one clip. I didn't get an ArUco tag into the shot, so scale comes from GPS alone (consumer GPS wanders 1 to 2 m).
+- **No NVIDIA GPU.** I had no CUDA GPU, so everything ran on CPU: about 35 minutes to solve camera poses for 165 frames and about 25 minutes to train the splat at 320x180. Each attempt took about an hour, so I couldn't retest with different settings or a new capture. The low training resolution is the main reason the scene is blurry. With a CUDA GPU, nerfstudio or FiGS would train a sharper splat in minutes.
+- **Scene content.** An open lawn is hard to reconstruct: the grass looks the same everywhere and the tree line is too far away to give much depth. Most of the detail sits along the path the drone actually flew.
+- **Sim model.** The drone model is intentionally simple. It has no thrust, body-rate or motor model and no wind. Collision checking only warns when the drone gets close to something; the drone doesn't physically stop or bounce. Splat-Nav-style ellipsoid collision and corridor planning are not built yet.
+- **Telemetry support.** Automatic GPS scaling only works with ANAFI videos (Parrot video metadata). Other cameras need the ArUco tag, or the scene uses approximate units.
+
+## Next steps
+
+- Re-fly Tuttle Park on a calm day: a full orbit at about 2 m and 4 m with the camera on the center, plus an ArUco tag.
+- Train on a CUDA GPU at full resolution.
+- Add wind and a thrust plus body-rate drone model, then compare sim and real tracks again.
+- Mission editor with Splat-Nav-style safe corridors.
 
 ## Layout
 
