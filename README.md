@@ -1,100 +1,45 @@
-# Twinflie
+# Hack-IO-2026
 
-A Digital Twin UAV Orchestrator and
-Simulator
+A quick simulator for drone missions, built from drone video of the place you want to fly.
 
-## Table of Contents
+Record a video of an area, and Hack-IO-2026 rebuilds it as a 3D Gaussian splat in real meters, drops a simple 6-DOF drone model into it, and lets you fly missions with velocity or attitude commands. With an ANAFI, it also replays the real flight from the drone's own GPS log, so you can compare the simulated drone against the real one.
 
-* [Introduction](#introduction)
-* [Architecture](#architecture)
-* [Backend Components](#backend-components)
-* [Client](#client)
-* [Twinflie Nodes](#twinflie-nodes)
-* [Video Demostration](#video-demostration)
-* [Publications and Citations](#publications-and-citations)
+Demo scene: Tuttle Park, Columbus OH, rebuilt from two ANAFI flights on 24 Oct 2026.
 
-## Introduction
+## What it does
 
-Twinflie is a simulation and monitoring orchestration system for swarms of UAVs in environments where UAV localization is feasible.
+| Part | What you get |
+|---|---|
+| Video to 3D world | `splat/build_scene.py`: frames, camera poses (COLMAP), Gaussian splat training on CPU. Works for any location. |
+| Real-world scale | ANAFI GPS read straight from the MP4 metadata (camera path fits GPS to 0.67 m median at Tuttle Park), or a printed ArUco tag for any other camera. |
+| Drone model | Position + roll, pitch, yaw. Tilt-driven acceleration, first-order attitude and climb response, drag, 25° tilt and speed limits. |
+| Control | Velocity mode (x/y/z velocity + yaw rate), attitude mode (roll, pitch, yaw rate, climb; same inputs as ANAFI manual control), and an autopilot that flies the recorded GPS track and reports tracking error. |
+| Views | Chase, FPV (drone camera inside the splat), free orbit. |
+| Collision warning | Occupancy grid built from the splat's opaque Gaussians. |
+| Desktop app | `HackIO-Sim.exe` runs offline and lists every scene you build. |
+| Real drone link | `AnafiUAV` drives a Parrot ANAFI through Olympe; `MockUAV` and a benchmark measure the digital-twin telemetry path. |
 
-Thanks to this software, it is possible to simulate the behavior of a swarm of UAVs in a controlled environment and, at the same time, monitor the execution of missions.
+## Quick start (Windows)
 
-## Architecture
+1. Build a scene: drag your videos onto `build_scene.bat` (first run installs the tools, about 1 GB).
+2. Build the app: double-click `build_exe.bat`, then run `dist\HackIO-Sim.exe`.
+3. Fly: `W/S` forward/back, `A/D` left/right, `R/F` climb/descend, `Q/E` yaw, `T` take off, `C` change camera.
 
-<p align="center">
-  <img alt="Twinflie Architecture" src="./readme/twinflie_arch.svg">
-</p>
+Linux/macOS: `python splat/build_scene.py video.mp4 --name my-field`, then `python splat/app/sim_launcher.py`.
 
-Twinflie Architecture is composed by 2 main component a backend service and a client. The latter is built in Python and the former is built in Godot.
+## Capturing a good scene
 
-The communication between the backend and the client is done via a series of http API and a communication channel via udp, The UDP communication channel is used to share in real-time, with the least possible delay, the state of the drones, we will analyze the APIs in the next few slide.
+Fly or walk a full slow circle around the area with the camera aimed at the center, at two heights, in steady light, with nothing moving through the shot. Lock exposure and keep the zoom at 1x. Add a printed ArUco tag (DICT_4X4_50, id 0) if the camera has no GPS.
 
-The Backend also use a radio link to communicate with drones to command their movement or to read their position.
+## Layout
 
-## Backend Components
+- `splat/`: scene builder (`build_scene.py`, `mp4meta.py`, `train_gs.py`), sim page (`site/`), desktop launcher (`app/`)
+- `scenes/`: built scenes (Tuttle Park included)
+- `bench/`: ANAFI telemetry extractor, ANAFI ground check, digital-twin latency benchmark
+- `python server/`, `godot client/`: the Twinflie orchestrator this project extends, with `MockUAV` and `AnafiUAV` added
 
-<p align="center">
-  <img alt="Twinflie Backend Components" src="./readme/twinflie_be_components.svg">
-</p>
+## Built on
 
-The Backend Service manages the UAVs connected and provide a series of API.
-
-When the connection to an UAV is established it is created an object that take the role of digital twin of the UAV.
-
-In order to use your favorite UAV system, you just have to implement the interface that allows the communication with the UAV and the control system to command their movements and actions.
-
-* **Position System**: Interfaces to the indoor/outdoor localisation system.
-* **Communication System**: Interfaces to the communication radio protocol.
-* **Mission Manager**: MAnages the mission of all UAVs.
-* **API Service**: Serves a set of HTTP and UDP API to interact and interface the Client with the service.
-
-## Client
-
-<p align="center">
-  <img alt="Twinflie Client" src="./readme/twinflie_client.png">
-</p>
-
-The Twinflie Client is a Graphical Desktop and Mobile Application that uses Twinflie service API to implements these functionalities:
-
-* Connect and Manage UAV
-* Monitoring their status in real-time
-* Visualize their positions in real and virtual world
-* Test the entire mission in the simulated world
-* Once the simulation success, launch the mission
-* Monitor the missions for each UAV connected
-
-<p align="center">
-  <img alt="Godot Logo" src="./readme/logo_large_color_light.svg">
-</p>
-
-The client was developed using the Godot Game Engine. Godot is an open-source and free game engine.
-Godot uses a tree structure to handle what are called scenes, where each node in the tree can contain other nodes.
-
-It has been chosen Godot due to its high portability across many devices, its entity management capabilities, its open-source nature and its high performance for an open-source game engine.
-
-In Godot it was realized a digital environment where the drones behaviour can be simulated in a dynamic environment with special Twinflie nodes
-
-### Twinflie Nodes
-
-<p align="center">
-  <img alt="Godot Logo" src="./readme/twinflie_node.PNG">
-</p>
-
-* **TouchObject**: is a scene designed to manage user
-interactions and be able to select that node to then interact, extending the node to more nodes it was possible to implement such interactions, depending on the type of node.
-* **AnchorObject**: represents an anchor in the real world
-and allows, through interaction, to set the real position of the anchor. This node is represented by a spherical Mesh node and a Label indicating the anchor ID, also consists of an Area3D node and a collision form to manage user interaction with the node in the 3D world.
-* **UAVObject**: extends the TouchObject node and is defined by a series of 3D-related nodes useful for drone management.
-* **Path node**: is a special node that allows you to define a path of movement of the virtual node within the 3D environment. This Path will be followed by the node inside, called PathFollow, which represents, together with its Mesh3D and its CollisionArea, the virtual twin drone. In addition to these two nodes, the PathFollow also contains a particular CollisionArea user configurable via UI that allows, during the test and simulation of the mission, to define a safe area for which the drone must never collide with any other object.
-* **Gizmo Tool**: is a node that allows the user to manipulate the location of the Path nodes in the 3D environment.
-* **Ghost Node**: represents a twin shadow of the virtual drone, representing the real one in its position and status, allowing real-time monitoring to the user and the client of what the real drone is doing.
-
-## Video Demostration
-
-The video demostration is avaiable on Youtube:
-
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/zEM39KKYv1k/0.jpg)](https://www.youtube.com/watch?v=zEM39KKYv1k)
-
-## Publications and Citations
-
-Coming soon
+- [Twinflie](https://github.com/UniCT-ARSLab/Twinflie) (Conti, Santoro, Santoro, IEEE DASC 2023), the digital-twin UAV orchestrator this repo started from. Its original README is in `docs/TWINFLIE_README.md`.
+- FiGS / SOUS VIDE (Stanford MSL) for the video-to-splat-to-drone-sim approach, and Splat-Nav for splat-based collision ideas.
+- [COLMAP](https://colmap.github.io/) via pycolmap, [three.js](https://threejs.org/), [GaussianSplats3D](https://github.com/mkkellogg/GaussianSplats3D), Parrot [Olympe](https://github.com/Parrot-Developers/olympe).

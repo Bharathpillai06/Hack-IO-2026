@@ -1,4 +1,4 @@
-<title>Tuttle Park Flight Sim</title>
+<title>Hack-IO-2026 Flight Sim</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -61,7 +61,7 @@ kbd { font-family: var(--f-data); font-size: 11px; border: 1px solid var(--panel
 <div id="stage"></div>
 
 <section class="hud tl" aria-label="Scene">
-  <h1>Tuttle Park Flight Sim</h1>
+  <h1>Hack-IO-2026 Flight Sim</h1>
   <div class="sub" id="scene-sub">Gaussian splat rebuilt from two ANAFI videos (24 Oct 2026, 40.0076&deg;N 83.0178&deg;W). Units are meters, aligned to the drone's own GPS.</div>
   <div class="legend"><span><span class="dot" style="background:var(--signal)"></span>Simulated drone</span><span><span class="dot" style="background:var(--track)"></span>Recorded ANAFI flight</span></div>
   <div id="status">Loading scene&hellip;</div>
@@ -202,7 +202,8 @@ Promise.all([loadJSON("track.json"), loadJSON("occupancy.json"), loadJSON("scene
     return fetch(BASE + "scene_splat.b64.txt").then((r) => r.text()).then((b64) => {
       const bin = Uint8Array.from(atob(b64.trim()), (ch) => ch.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bin], { type: "application/octet-stream" }));
-      return splat.addSplatScene(url, { showLoadingUI: false, format: GS.SceneFormat.Splat, splatAlphaRemovalThreshold: 5, progressiveLoad: false });
+      return splat.addSplatScene(url, { showLoadingUI: false, format: GS.SceneFormat.Splat, splatAlphaRemovalThreshold: 5, progressiveLoad: false })
+        .then(() => { sceneReady = true; });
     });
   })
   .catch((e) => status("Could not load the scene: " + e.message));
@@ -260,7 +261,9 @@ addEventListener("blur", () => keys.clear());
 let takeoffTarget = null, simClock = 0, ghostClock = 0;
 const errs = [];
 
+let scripted = null;   // set by window.__sim.input() for recorded demos
 function readKeys() {
+  if (scripted) { Object.assign(input, { fwd: 0, right: 0, up: 0, yaw: 0 }, scripted); return; }
   const ax = (a, b) => (keys.has(a) ? 1 : 0) - (keys.has(b) ? 1 : 0);
   input.fwd = ax("w", "s") || touch.fwd; input.right = ax("d", "a") || touch.right;
   input.up = ax("r", "f") || touch.up; input.yaw = ax("e", "q") || touch.yaw;
@@ -370,9 +373,9 @@ function poseObject(obj, p, yawDeg, roll, pitch) {
   e3.set(-pitch, -yawDeg * D2R, -roll, "YXZ"); obj.quaternion.setFromEuler(e3);
 }
 const camOff = new THREE.Vector3(), look = new THREE.Vector3();
-let last = performance.now();
-function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+let last = performance.now(), manual = false;
+function frame(now, fixedDt) {
+  const dt = fixedDt ?? Math.min(0.05, (now - last) / 1000); last = now;
   readKeys();
   const sub = 8;
   for (let i = 0; i < sub; i++) step(dt / sub);
@@ -412,11 +415,21 @@ function frame(now) {
   } else $("t-err").textContent = "–";
   $("alert").textContent = s.landed ? "LANDED · press T or R to take off" : (nearObstacle() ? "OBSTACLE WITHIN 1 m" : "");
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
+  if (!manual) requestAnimationFrame(frame);
 }
 addEventListener("resize", () => {
   renderer.setSize(stage.clientWidth, stage.clientHeight);
   camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
 });
 requestAnimationFrame(frame);
+// Scripting hook for recorded demos and automated tests
+let sceneReady = false;
+window.__sim = {
+  manual(on) { manual = on; if (!on) { last = performance.now(); requestAnimationFrame(frame); } },
+  step(dt) { frame(performance.now(), dt); },
+  input(v) { scripted = v; },
+  mode: (m) => setMode(m), cam: (c) => setCamera(c), ghost: (on) => setGhost(on),
+  takeoff(h = 2) { s.landed = false; takeoffTarget = h; },
+  state: () => ({ ...s, p: [...s.p], v: [...s.v], mode, camMode, sceneReady }),
+};
 </script>

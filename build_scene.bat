@@ -2,7 +2,7 @@
 REM Build a flight-sim scene from video of any location.
 REM Drag one or more videos onto this file, or run:  build_scene.bat clip1.mp4 clip2.mp4 --name my-field
 REM First run installs the reconstruction tools into .venv-splat (about 1 GB, CPU only).
-REM The scene appears in scenes\<name>\ and in the Scene menu of TwinflieSim.exe.
+REM The scene appears in scenes\<name>\ and in the Scene menu of HackIO-Sim.exe.
 cd /d "%~dp0"
 if "%~1"=="" (
   echo Drag one or more videos onto build_scene.bat, or run: build_scene.bat video.mp4 --name my-field
@@ -22,7 +22,7 @@ if not exist .venv-splat (
 )
 python splat\build_scene.py %* || goto :fail
 echo.
-echo Done. Open TwinflieSim.exe or run_sim.bat and pick the scene.
+echo Done. Open HackIO-Sim.exe or run_sim.bat and pick the scene.
 pause
 exit /b 0
 :fail

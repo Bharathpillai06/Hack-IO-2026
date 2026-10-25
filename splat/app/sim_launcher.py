@@ -1,12 +1,12 @@
-"""Twinflie Sim desktop launcher: serves the flight sim locally and opens it in your browser.
+"""Hack-IO-2026 Sim desktop launcher: serves the flight sim locally and opens it in your browser.
 
 Runs offline (three.js and the splat viewer are bundled). Scenes are folders made by
-splat/build_scene.py; put them in a "scenes" folder next to TwinflieSim.exe (or next to
+splat/build_scene.py; put them in a "scenes" folder next to HackIO-Sim.exe (or next to
 this script) and pick them from the Scene menu in the page.
 
-  TwinflieSim.exe                 # open the first scene
-  TwinflieSim.exe tuttle-park     # open a specific scene
-  TwinflieSim.exe --port 8800
+  HackIO-Sim.exe                 # open the first scene
+  HackIO-Sim.exe tuttle-park     # open a specific scene
+  HackIO-Sim.exe --port 8800
 """
 import argparse, http.server, json, os, socket, socketserver, sys, threading, webbrowser
 from urllib.parse import unquote, urlparse
@@ -111,7 +111,7 @@ def main():
     srv.daemon_threads = True
     name = a.scene or (scenes[0] if scenes else "")
     url = f"http://127.0.0.1:{port}/#{name}"
-    print(f"Twinflie Sim running at {url}\nScenes: {', '.join(scenes) or 'none'}\nClose this window to stop.")
+    print(f"Hack-IO-2026 Sim running at {url}\nScenes: {', '.join(scenes) or 'none'}\nClose this window to stop.")
     if not a.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
