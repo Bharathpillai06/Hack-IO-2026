@@ -1,4 +1,4 @@
-"""Hack-IO-2026 scripted simulation: fly the sim drone from Python and test your code.
+"""Twinfield scripted simulation: fly the sim drone from Python and test your code.
 
 Same drone model as the web sim (splat/site/index.html), runs headless and much faster
 than real time, and can stream to the 3D view so you can watch a script fly.

@@ -11,7 +11,7 @@ import missions  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--scene", default="tuttle-park")
-ap.add_argument("--viz", help="URL of a running HackIO-Sim window")
+ap.add_argument("--viz", help="URL of a running Twinfield window")
 ap.add_argument("--height", type=float, default=5.0, help="m above takeoff")
 ap.add_argument("--speed", type=float, default=3.0, help="m/s (mapping apps use 5-8)")
 ap.add_argument("--side-overlap", type=float, default=0.7)

@@ -1,4 +1,6 @@
-# Hack-IO-2026
+# Twinfield
+
+A digital twin of the field you fly in. Built at HackOHI/O 2026 on top of [Twinflie](https://github.com/UniCT-ARSLab/Twinflie).
 
 A simulator for drone missions, built from drone video of the place you want to fly.
 
@@ -22,13 +24,13 @@ Demo scene: Tuttle Park, Columbus OH, rebuilt from two 1 min ANAFI flights on 24
 | Control | Velocity mode (x/y/z velocity + yaw rate), attitude mode (roll, pitch, yaw rate, climb; same inputs as ANAFI manual control), and an autopilot that flies the recorded GPS track and reports tracking error. |
 | Views | Chase, FPV (drone camera inside the splat), free orbit. |
 | Collision warning | Occupancy grid built from the splat's opaque Gaussians. |
-| Desktop app | `HackIO-Sim.exe` runs offline and lists every scene you build. |
+| Desktop app | `Twinfield.exe` runs offline and lists every scene you build. |
 | Real drone link | `AnafiUAV` drives a Parrot ANAFI through Olympe; `MockUAV` and a benchmark measure the digital-twin telemetry path. |
 
 ## Quick start (Windows)
 
 1. Build a scene: drag your videos onto `build_scene.bat` (first run installs the tools, about 1 GB).
-2. Build the app: double-click `build_exe.bat`, then run `dist\HackIO-Sim.exe`.
+2. Build the app: double-click `build_exe.bat`, then run `dist\Twinfield.exe`.
 3. Fly: `W/S` forward/back, `A/D` left/right, `R/F` climb/descend, `Q/E` yaw, `T` take off, `C` change camera.
 
 Linux/macOS: `python splat/build_scene.py video.mp4 --name my-field`, then `python splat/app/sim_launcher.py`.
@@ -40,7 +42,7 @@ Linux/macOS: `python splat/build_scene.py video.mp4 --name my-field`, then `pyth
 ```python
 from hackio_sim import Sim
 
-sim = Sim("tuttle-park")                 # add viz="http://127.0.0.1:8800" to watch it in HackIO-Sim.exe
+sim = Sim("tuttle-park")                 # add viz="http://127.0.0.1:8800" to watch it in Twinfield.exe
 sim.takeoff(2.0)
 sim.goto(10, 5, 2)                       # metres: x east, y north, z up (origin = takeoff spot)
 sim.velocity(vx=1.0, vz=0, seconds=3, frame="body")
@@ -53,7 +55,7 @@ sim.save_log("flight.csv")
 Other calls: `state()`, `hover()`, `fly_recorded_track()` (flies the real ANAFI GPS path and returns tracking error), `in_collision()`, `near_obstacle()`, `path_is_clear(a, b)`, `reset()`.
 
 - Examples: `splat/sim/examples/square_mission.py`, `replay_real_flight.py`, and `my_controller.py` (a template: fill in `control(state, t)`).
-- Watch a script live: open `HackIO-Sim.exe`, then run `run_mission.bat` (or add `--viz http://127.0.0.1:8800` to any example). The page switches to SCRIPT mode and follows the scripted drone.
+- Watch a script live: open `Twinfield.exe`, then run `run_mission.bat` (or add `--viz http://127.0.0.1:8800` to any example). The page switches to SCRIPT mode and follows the scripted drone.
 - Real-world missions (`splat/sim/missions.py`), with the settings commercial missions use:
   - Lawnmower grid for mapping or a search-and-rescue sweep: `lawnmower(polygon, height, side_overlap=0.75)` picks line spacing from the ANAFI camera footprint and the line angle that gives the shortest path, then `fly()` scores photo coverage and overlap. `python splat/sim/examples/lawnmower_mission.py`
   - Orbit a point of interest with the camera locked on it: `orbit(center, radius, height)`, scored on radius and aim error. `python splat/sim/examples/orbit_mission.py`

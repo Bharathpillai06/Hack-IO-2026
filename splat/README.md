@@ -24,4 +24,4 @@ On Windows, drag videos onto `build_scene.bat`. The scene lands in `scenes/<name
 For a good scene, fly or walk a full circle around the area with the camera aimed at the center, slowly, in steady light.
 
 ## Desktop app
-`build_exe.bat` builds `dist/HackIO-Sim.exe` (PyInstaller). The exe serves the sim offline (three.js and the splat viewer are bundled in `splat/app/web/vendor`) and opens it in your browser. Scenes live in `scenes/` next to the exe; pick one from the Scene menu. `run_sim.bat` runs the same thing from Python without building.
+`build_exe.bat` builds `dist/Twinfield.exe` (PyInstaller). The exe serves the sim offline (three.js and the splat viewer are bundled in `splat/app/web/vendor`) and opens it in your browser. Scenes live in `scenes/` next to the exe; pick one from the Scene menu. `run_sim.bat` runs the same thing from Python without building.

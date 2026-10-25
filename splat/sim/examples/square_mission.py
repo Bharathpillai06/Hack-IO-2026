@@ -9,7 +9,7 @@ from hackio_sim import Sim  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--scene", default="tuttle-park")
-ap.add_argument("--viz", help="URL of a running HackIO-Sim window")
+ap.add_argument("--viz", help="URL of a running Twinfield window")
 a = ap.parse_args()
 
 sim = Sim(a.scene, viz=a.viz)

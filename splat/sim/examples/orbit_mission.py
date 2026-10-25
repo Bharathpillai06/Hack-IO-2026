@@ -11,7 +11,7 @@ import missions  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--scene", default="tuttle-park")
-ap.add_argument("--viz", help="URL of a running HackIO-Sim window")
+ap.add_argument("--viz", help="URL of a running Twinfield window")
 ap.add_argument("--center", type=float, nargs=2, default=(3.0, 9.0), metavar=("X", "Y"),
                 help="point to circle, m east/north of takeoff")
 ap.add_argument("--radius", type=float, default=6.0)

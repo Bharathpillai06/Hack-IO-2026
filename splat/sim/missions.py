@@ -1,4 +1,4 @@
-"""Real-world drone missions for the Hack-IO-2026 sim: lawnmower grid and orbit.
+"""Real-world drone missions for the Twinfield sim: lawnmower grid and orbit.
 
 Both build a plain list of ENU waypoints (meters from the scene origin, x east, y north, z up),
 so the same plan can be flown in the sim (Sim.fly_path), scored (coverage / orbit_quality), and
