@@ -62,9 +62,11 @@ kbd { font-family: var(--f-data); font-size: 11px; border: 1px solid var(--panel
 
 <section class="hud tl" aria-label="Scene">
   <h1>Tuttle Park Flight Sim</h1>
-  <div class="sub">Gaussian splat rebuilt from two ANAFI videos (24 Oct 2026, 40.0076&deg;N 83.0178&deg;W). Units are meters, aligned to the drone's own GPS.</div>
+  <div class="sub" id="scene-sub">Gaussian splat rebuilt from two ANAFI videos (24 Oct 2026, 40.0076&deg;N 83.0178&deg;W). Units are meters, aligned to the drone's own GPS.</div>
   <div class="legend"><span><span class="dot" style="background:var(--signal)"></span>Simulated drone</span><span><span class="dot" style="background:var(--track)"></span>Recorded ANAFI flight</span></div>
   <div id="status">Loading scene&hellip;</div>
+  <label id="picker" hidden style="display:flex;gap:6px;align-items:center;margin-top:6px"><span class="label">Scene</span>
+    <select id="scene-select" style="font:inherit;color:var(--ink);background:rgba(255,255,255,0.06);border:1px solid var(--panel-line);border-radius:4px;padding:3px 6px"></select></label>
 </section>
 
 <section class="hud tr" aria-label="Controls">
@@ -175,7 +177,10 @@ scene.add(drone, ghost);
 
 // ------------------------------------------------------------------ data
 let track = null, occ = null;
-async function loadJSON(path) { const r = await fetch(path); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+// Scene folder: the page's own folder, or scenes/<name>/ when opened as index.html#<name> (desktop app)
+const SCENE = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";
+const BASE = SCENE ? `scenes/${encodeURIComponent(SCENE)}/` : "";
+async function loadJSON(path) { const r = await fetch(BASE + path); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
 
 const splat = new GS.DropInViewer({ gpuAcceleratedSort: false, sharedMemoryForWorkers: false, integerBasedSort: false, dynamicScene: false });
 scene.add(splat);
@@ -189,14 +194,28 @@ Promise.all([loadJSON("track.json"), loadJSON("occupancy.json"), loadJSON("scene
       stage.style.background = `linear-gradient(to bottom, ${c(meta.sky[1])}, ${c(meta.sky[0])} 60%, #7d8d6f 100%)`;
     }
     drawTrack(); resetDrone();
-    status(`Scene: ${meta.count.toLocaleString()} gaussians. Recorded flight: ${track.t.length} samples over ${track.t.at(-1).toFixed(0)} s. Camera fit to GPS: median ${meta.align_median_m.toFixed(1)} m.`);
-    return fetch("scene_splat.b64.txt").then((r) => r.text()).then((b64) => {
+    if (SCENE) {
+      $("scene-sub").textContent = `Scene "${meta.name || SCENE}" rebuilt from video. ` + (meta.align_method === "gps" ? "Units are meters, aligned to the drone's GPS." :
+        meta.align_method === "aruco" ? "Units are meters, aligned to the ArUco tag." : "No GPS or tag, so units are approximate.");
+    }
+    status(`Scene: ${meta.count.toLocaleString()} gaussians. Recorded flight: ${track.t.length} samples over ${track.t.at(-1).toFixed(0)} s. ${(typeof meta.align_median_m === "number") ? `Camera fit: median ${meta.align_median_m.toFixed(1)} m.` : ""}`);
+    return fetch(BASE + "scene_splat.b64.txt").then((r) => r.text()).then((b64) => {
       const bin = Uint8Array.from(atob(b64.trim()), (ch) => ch.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bin], { type: "application/octet-stream" }));
       return splat.addSplatScene(url, { showLoadingUI: false, format: GS.SceneFormat.Splat, splatAlphaRemovalThreshold: 5, progressiveLoad: false });
     });
   })
   .catch((e) => status("Could not load the scene: " + e.message));
+
+fetch("scenes/index.json").then((r) => (r.ok ? r.json() : null)).then((list) => {
+  if (!list || !list.length) return;
+  const sel = $("scene-select");
+  for (const n of list) { const o = document.createElement("option"); o.value = o.textContent = n; sel.appendChild(o); }
+  sel.value = SCENE || list[0];
+  if (!SCENE) { location.hash = list[0]; location.reload(); return; }
+  $("picker").hidden = false;
+  sel.addEventListener("change", () => { location.hash = sel.value; location.reload(); });
+}).catch(() => {});
 
 function drawTrack() {
   const pts = track.enu.map(([e, n, u]) => enu2three(e, n, u));

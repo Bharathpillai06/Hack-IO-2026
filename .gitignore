@@ -2,3 +2,9 @@
 tools/
 __pycache__/
 bench/server.log
+.venv-splat/
+.venv-app/
+build/
+dist/
+*.spec
+scenes/*/work/

@@ -1,8 +1,9 @@
 """Minimal CPU Gaussian splatting trainer (PyTorch, tile-based alpha compositing).
 
-Input : colmap/sparse/0 (pycolmap), splatprep/images, telemetry.json
+Run inside a scene work folder (build_scene.py does this):
+Input : colmap/sparse/0, images/, align.json (COLMAP -> world similarity, world z = up, ground at z=0)
 Output: out/scene.splat (antimatter15 .splat, three.js frame: x=E, y=Up, z=-N),
-        out/align.json (COLMAP -> ENU similarity), out/preview_*.png
+        out/occupancy.json, out/scene_meta.json, out/preview_*.png
 
 Kept deliberately small: DC color only, L1 loss, simple clone/split/prune.
 Runs at low resolution so it trains on a 2-core CPU.
@@ -14,7 +15,7 @@ import pycolmap
 from PIL import Image
 from scipy.spatial import cKDTree
 
-torch.set_num_threads(2)
+torch.set_num_threads(max(1, (os.cpu_count() or 2) - 1))
 torch.manual_seed(0)
 ITERS = int(os.environ.get("ITERS", 1500))
 DOWN = int(os.environ.get("DOWN", 4))          # 1280x720 -> 320x180
@@ -26,7 +27,6 @@ os.makedirs("out", exist_ok=True)
 
 # ---------------------------------------------------------------- data
 rec = pycolmap.Reconstruction("colmap/sparse/0")
-tele = json.load(open("telemetry.json"))["frames"]
 imgs = []
 for im in rec.images.values():
     if not im.has_pose:
@@ -39,23 +39,11 @@ for im in rec.images.values():
 imgs.sort(key=lambda d: d["name"])
 print(len(imgs), "registered images,", len(rec.points3D), "points", flush=True)
 
-# --- similarity COLMAP -> ENU (x east, y north, z = height above lawn)
-C = np.array([-d["R"].T @ d["t"] for d in imgs])
-G = np.array([[tele[d["name"]]["enu"][0], tele[d["name"]]["enu"][1],
-               tele[d["name"]]["ground_distance"]] for d in imgs])
-def umeyama(X, Y):
-    mx, my = X.mean(0), Y.mean(0)
-    Xc, Yc = X - mx, Y - my
-    U, S, Vt = np.linalg.svd(Yc.T @ Xc / len(X))
-    D = np.eye(3); D[2, 2] = np.sign(np.linalg.det(U @ Vt))
-    R = U @ D @ Vt
-    s = np.trace(np.diag(S) @ D) / (Xc ** 2).sum(1).mean()
-    return s, R, my - s * R @ mx
-s, Ra, ta = umeyama(C, G)
-res = np.linalg.norm((s * (Ra @ C.T)).T + ta - G, axis=1)
-print(f"align: scale {s:.3f}, camera-vs-GPS residual median {np.median(res):.2f} m, max {res.max():.2f} m", flush=True)
-json.dump({"scale": s, "R": Ra.tolist(), "t": ta.tolist(), "residual_median_m": float(np.median(res)),
-           "residual_max_m": float(res.max())}, open("out/align.json", "w"), indent=1)
+# --- similarity COLMAP -> world, computed by build_scene.py (GPS, ArUco tag, or camera-up fallback)
+align = json.load(open("align.json"))
+s, Ra, ta = align["scale"], np.array(align["R"]), np.array(align["t"])
+res = np.array([align.get("residual_median_m", float("nan"))])
+print(f"align: {align.get('method')}, scale {s:.3f}", flush=True)
 
 # express cameras in ENU: X_enu = s Ra X + ta  ->  X = Ra^T (X_enu - ta)/s
 for d in imgs:
@@ -63,7 +51,7 @@ for d in imgs:
     t_new = s * d["t"] - R_new @ ta
     d["R"], d["t"] = R_new, t_new          # cam = R_new X_enu + t_new (camera units = meters)
     sc = 1.0 / DOWN
-    img = Image.open(f"splatprep/images/{d['name']}").convert("RGB")
+    img = Image.open(f"images/{d['name']}").convert("RGB")
     W, H = int(round(d["w"] * sc)), int(round(d["h"] * sc))
     d["img"] = torch.from_numpy(np.asarray(img.resize((W, H), Image.LANCZOS))).float() / 255.0
     d["W"], d["H"] = W, H
@@ -297,7 +285,9 @@ for i in order:
     buf += bytes(np.clip(qt[i] * 128 + 128, 0, 255).astype(np.uint8))
 open("out/scene.splat", "wb").write(buf)
 json.dump({"sky": sky.detach().tolist(), "count": len(order),
-           "align_median_m": float(np.median(res)), "align_scale": float(s)}, open("out/scene_meta.json", "w"))
+           "align_median_m": (None if np.isnan(np.median(res)) else float(np.median(res))), "align_scale": float(s),
+           "align_method": align.get("method"), "name": align.get("name"), "origin": align.get("origin"),
+           "units": align.get("units", "m")}, open("out/scene_meta.json", "w"))
 # occupancy for collision warnings: opaque gaussians above the lawn, 0.5 m cells (ENU indices)
 cell = 0.5
 solid = (o > 0.5) & (m[:, 2] > 0.4) & (m[:, 2] < 30)
